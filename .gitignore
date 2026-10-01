@@ -1,0 +1,128 @@
+# =========================================================
+#  Randomizer (Angular + Express + Electron)
+#  Dependencies, build output, packaging artifacts & runtime data
+# =========================================================
+
+# ---------------------------- Node.js ----------------------------
+# Dependencies
+# node_modules: the folder AND every file inside it, at the project root and at
+# any nested depth. (Excluding a folder already excludes its contents; the extra
+# "**/*" lines spell that out so every node_modules file is ignored explicitly.)
+node_modules/
+**/node_modules/
+node_modules/**/*
+**/node_modules/**/*
+jspm_packages/
+jspm_packages/**/*
+bower_components/
+bower_components/**/*
+
+# Package manager locks / caches
+.npm/
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/versions
+.pnp
+.pnp.js
+.pnp.*
+.npminstall.log
+
+# npm / yarn debug & error logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+logs/
+*.log
+
+# Node runtime / tooling
+.nvmrc
+.nuxt/
+.eslintcache
+.nyc_output/
+coverage/
+*.tsbuildinfo
+
+# Environment variables (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# ---------------------------- Angular ----------------------------
+# Angular CLI build output.
+# angular.json -> outputPath: "dist/randomizer-app"
+# tsconfig.json -> outDir: "./dist/out-tsc"
+/dist/
+/out-tsc/
+/bazel-out/
+
+# Angular CLI cache (Angular 13+, this project: .angular/cache)
+.angular/
+/.angular/**/*
+
+# Angular / webpack build info & IDE helpers
+*.build-info.json
+/webpack/
+.Sass-cache/
+*.css.map
+*.js.map
+
+# ------------------- Electron / electron-builder -------------------
+# electron-builder output (package.json -> build.directories.output: "release")
+/release/
+/app-builds/
+/out/
+/dist_electron/
+/dist-app/
+*.asar
+*.asar.unpacked/
+
+# Packaged/unpacked binaries
+*.exe
+*.dll
+*.node
+!electron/**/*.node
+
+# ------------------- Runtime application data -------------------
+# server/server.js seeds/creates these files on first run and they
+# hold user-edited lists, so they are not source-controlled.
+# (The folder itself is kept.)
+/data/*.json
+/data/*.xml
+
+# -------- Hidden "dot" folders AND every file inside them --------
+# Ignore every folder whose name starts with a dot (e.g. .angular/, .cache/,
+# .history/, .nyc_output/, .pytest_cache/, .turbo/, .vscode/, .idea/) and, since
+# excluding a folder also excludes everything inside it, every file that lives
+# in those folders. The "**/*" line is explicit for the "all files" requirement.
+.*/
+.*/**/*
+
+# No !negations here on purpose: the goal is to ignore ALL files that live in
+# any dot-folder. (The trailing slash above keeps dot-FILES such as .gitignore
+# and .env.example — which are top-level FILES, not folders — tracked.)
+
+# ---------------------------- IDE / OS ----------------------------
+# .vscode/, .idea/, .history/ (and all of their files) already start with "."
+# and are therefore ignored by the ".*/" rule above — no extra lines needed.
+*.iml
+*.iws
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary / editor swap files
+*.swp
+*.swo
+*~
+.~*
+tmp/
+temp/

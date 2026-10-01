@@ -1,0 +1,59 @@
+{
+  "name": "randomizer-app",
+  "version": "2.0.0",
+  "description": "Game randomizer with backend storage",
+  "author": "you",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "server": "node server/server.js",
+    "dev": "concurrently -k -n API,WEB -c blue,green \"node server/server.js\" \"ng serve\"",
+    "build": "ng build",
+    "electron:start": "npm run build && electron .",
+    "electron:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "fast-xml-parser": "^4.3.6"
+  },
+  "devDependencies": {
+    "@angular/animations": "^17.3.0",
+    "@angular/common": "^17.3.0",
+    "@angular/compiler": "^17.3.0",
+    "@angular/core": "^17.3.0",
+    "@angular/platform-browser": "^17.3.0",
+    "@angular/platform-browser-dynamic": "^17.3.0",
+    "@angular-devkit/build-angular": "^17.3.0",
+    "@angular/cli": "^17.3.0",
+    "@angular/compiler-cli": "^17.3.0",
+    "concurrently": "^8.2.2",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "typescript": "~5.4.2",
+    "zone.js": "~0.14.3"
+  },
+  "build": {
+    "appId": "com.example.randomizer",
+    "productName": "Randomizer",
+    "directories": { "output": "release" },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "dist/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

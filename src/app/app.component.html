@@ -1,0 +1,104 @@
+<main class="container">
+  <h1>🎲 Game Randomizer</h1>
+
+  <p class="error" *ngIf="error()">{{ error() }}</p>
+
+  <!-- Platform menu -->
+  <nav class="card platform-menu" *ngIf="platforms().length">
+    <button
+      *ngFor="let p of platforms()"
+      type="button"
+      [class.active]="p.id === selectedPlatform()"
+      (click)="selectPlatform(p.id)">
+      {{ p.name }}
+    </button>
+  </nav>
+
+  <ng-container *ngIf="currentPlatform() as platform">
+
+    <!-- Result -->
+    <section class="card result-card">
+      <div class="platform-title">{{ platform.name }}</div>
+      <div class="result" [class.spinning]="isSpinning()">
+        {{ loading() ? 'Loading…' : (result() ?? '—') }}
+      </div>
+
+      <button class="pick-btn" type="button" (click)="pick()" [disabled]="!canPick()">
+        {{ isSpinning() ? 'Spinning…' : 'Randomize' }}
+      </button>
+
+      <label class="option">
+        <input type="checkbox" [checked]="excludeLast()" (change)="toggleExclude($event)" />
+        Don't repeat the last result
+      </label>
+
+      <p class="hint" *ngIf="history().length">
+        Last picks: {{ history().slice(0, 5).join(' → ') }}
+      </p>
+    </section>
+
+    <!-- List editor -->
+    <section class="card">
+      <h2>
+        Game list
+        <span class="badge" *ngIf="dirty()">unsaved changes</span>
+        <span class="badge saved" *ngIf="savedAt()">saved {{ savedAt() }}</span>
+      </h2>
+
+      <div class="editor-row">
+        <input
+          type="text"
+          placeholder="Add a game…"
+          [value]="newItem()"
+          (input)="onNewItemInput($event)"
+          (keydown.enter)="addItem()" />
+        <button type="button" (click)="addItem()">Add</button>
+      </div>
+
+      <ul class="list editable">
+        <li *ngFor="let item of items(); let i = index">
+          <span>{{ item }}</span>
+          <button class="remove" type="button" (click)="removeItem(i)" title="Remove">✕</button>
+        </li>
+      </ul>
+      <p class="hint" *ngIf="!items().length && !loading()">
+        Empty list — add games above or import a .txt file.
+      </p>
+
+      <div class="import-row">
+        <input type="file" accept=".txt,text/plain" (change)="onFileSelected($event)" />
+        <span class="hint">import .txt (one title per line), then press Save</span>
+      </div>
+
+      <div class="save-row">
+        <span class="hint">File format:</span>
+        <label>
+          <input type="radio" name="fmt" value="json"
+                 [checked]="storageFormat() === 'json'"
+                 (change)="setFormat('json')" /> JSON
+        </label>
+        <label>
+          <input type="radio" name="fmt" value="xml"
+                 [checked]="storageFormat() === 'xml'"
+                 (change)="setFormat('xml')" /> XML
+        </label>
+        <span class="spacer"></span>
+        <button type="button" (click)="reload()">Reload</button>
+        <button type="button" (click)="clearList()">Clear list</button>
+        <button type="button" class="primary" (click)="save()"
+                [disabled]="saving() || !selectedPlatform()">
+          {{ saving() ? 'Saving…' : 'Save as ' + storageFormat().toUpperCase() }}
+        </button>
+      </div>
+    </section>
+  </ng-container>
+
+  <!-- Session history -->
+  <section class="card" *ngIf="history().length">
+    <h2>Session history</h2>
+    <ul class="list">
+      <li *ngFor="let h of history()">{{ h }}</li>
+    </ul>
+    <button type="button" (click)="resetHistory()">Clear history</button>
+  </section>
+</main>
