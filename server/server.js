@@ -19,6 +19,10 @@ const DEFAULT_SEED = {
 
 const XML_OPTS = { ignoreAttributes: false, attributeNamePrefix: '@_' };
 
+// roulette media: what we recognize when scanning the folder
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac', '.wma', '.opus']);
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']);
+
 // ---------------- storage helpers ----------------
 
 const jsonFile = (dir, id) => path.join(dir, `${id}.json`);
@@ -80,14 +84,60 @@ function ensureDataDir(dir) {
   }
 }
 
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+/**
+ * Scans the roulette folder (case-insensitive names):
+ *   Rulett01.mp3, Rulett02.ogg …  → spin music (loops during the spin)
+ *   RulettEnd.wav                 → "wheel stopped" sound
+ *   RuletIco1.png, RuletIco2.png… → platform icons, matched to /api/platforms order
+ *   any other image               → roulette background
+ */
+function scanRoulette(dir) {
+  const manifest = { dir, music: [], stopSound: null, icons: [], backgrounds: [] };
+  let entries = [];
+  try { entries = fs.readdirSync(dir); } catch { return manifest; }
+
+  const fileNumber = name => {
+    const m = name.match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER; // RuletIco10 after RuletIco9
+  };
+
+  for (const name of entries) {
+    const ext = path.extname(name).toLowerCase();
+    const base = path.basename(name, ext).toLowerCase();
+
+    if (AUDIO_EXTS.has(ext)) {
+      if (base === 'rulettend') { if (!manifest.stopSound) manifest.stopSound = name; }
+      else if (base.startsWith('rulett')) manifest.music.push(name);
+    } else if (IMAGE_EXTS.has(ext)) {
+      if (base.startsWith('ruletico')) manifest.icons.push(name);
+      else manifest.backgrounds.push(name);
+    }
+  }
+
+  manifest.music.sort((a, b) => fileNumber(a) - fileNumber(b) || a.localeCompare(b));
+  manifest.icons.sort((a, b) => fileNumber(a) - fileNumber(b) || a.localeCompare(b));
+  manifest.backgrounds.sort();
+  return manifest;
+}
+
 // ---------------- server ----------------
 
-function startServer({ port = 3000, staticDir = null, dataDir } = {}) {
+function startServer({ port = 3000, staticDir = null, dataDir, rouletteDir } = {}) {
   dataDir = dataDir || path.join(__dirname, '..', 'data');
+  rouletteDir = rouletteDir || path.join(__dirname, '..', 'roulette');
   ensureDataDir(dataDir);
+  ensureDir(rouletteDir);
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
+
+  // roulette media — served straight from the folder, rescanned on every request
+  app.use('/roulette', express.static(rouletteDir));
+  app.get('/api/assets', (_req, res) => res.json(scanRoulette(rouletteDir)));
 
   app.get('/api/platforms', (_req, res) => res.json(PLATFORMS));
 
@@ -118,7 +168,7 @@ function startServer({ port = 3000, staticDir = null, dataDir } = {}) {
   if (staticDir && fs.existsSync(path.join(staticDir, 'index.html'))) {
     app.use(express.static(staticDir));
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api/')) return next();
+      if (req.path.startsWith('/api/') || req.path.startsWith('/roulette/')) return next();
       res.sendFile(path.join(staticDir, 'index.html'));
     });
   }
@@ -130,9 +180,12 @@ module.exports = { startServer, PLATFORMS };
 
 // standalone mode: node server/server.js
 if (require.main === module) {
+  const root = path.join(__dirname, '..');
   const port = Number(process.env.PORT) || 3000;
-  const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-  startServer({ port, dataDir });
+  const dataDir = process.env.DATA_DIR || path.join(root, 'data');
+  const rouletteDir = process.env.ROULETTE_DIR || path.join(root, 'roulette');
+  startServer({ port, dataDir, rouletteDir });
   console.log(`Randomizer API  → http://localhost:${port}/api/platforms`);
   console.log(`Data folder     → ${dataDir}`);
+  console.log(`Roulette folder → ${rouletteDir}`);
 }

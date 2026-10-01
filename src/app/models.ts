@@ -8,3 +8,11 @@ export interface ListPayload {
   items: string[];
   updatedAt: string | null;
 }
+
+export interface AssetsManifest {
+  dir: string;
+  music: string[];
+  stopSound: string | null;
+  icons: string[];
+  backgrounds: string[];
+}

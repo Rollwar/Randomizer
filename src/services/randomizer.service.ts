@@ -13,7 +13,8 @@ export class RandomizerService {
     this.historySignal.set([]);
   }
 
-  pickRandom(excludeLast: boolean): string | null {
+  /** Chooses a winner without recording it — call commit() when the wheel stops. */
+  chooseWinner(excludeLast: boolean): string | null {
     const items = this.itemsSignal();
     if (items.length === 0) return null;
 
@@ -23,10 +24,11 @@ export class RandomizerService {
       pool = last ? items.filter(i => i !== last) : items;
       if (pool.length === 0) pool = items;
     }
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
 
-    const picked = pool[Math.floor(Math.random() * pool.length)];
+  commit(picked: string): void {
     this.historySignal.update(h => [picked, ...h].slice(0, 50));
-    return picked;
   }
 
   resetHistory(): void {

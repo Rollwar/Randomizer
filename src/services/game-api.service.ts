@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { GamePlatform, ListPayload, StorageFormat } from '../app/models';
+import { AssetsManifest, GamePlatform, ListPayload, StorageFormat } from '../app/models';
 
 @Injectable({ providedIn: 'root' })
 export class GameApiService {
@@ -10,6 +10,10 @@ export class GameApiService {
 
   getPlatforms(): Observable<GamePlatform[]> {
     return this.http.get<GamePlatform[]>(`${this.base}/platforms`);
+  }
+
+  getAssets(): Observable<AssetsManifest> {
+    return this.http.get<AssetsManifest>(`${this.base}/assets`);
   }
 
   getList(platformId: string, format: StorageFormat): Observable<ListPayload> {

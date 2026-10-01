@@ -2,7 +2,22 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { GameApiService } from '../services/game-api.service';
 import { RandomizerService } from '../services/randomizer.service';
-import { GamePlatform, StorageFormat } from './models';
+import { AudioService } from '../services/audio.service';
+import { AssetsManifest, GamePlatform, StorageFormat } from './models';
+
+interface RandomizerBridge {
+  isDesktop: boolean;
+  openRouletteFolder(): Promise<string>;
+  minimize(): void;
+  toggleMaximize(): void;
+  close(): void;
+}
+
+declare global {
+  interface Window { randomizer?: RandomizerBridge; }
+}
+
+type SectionId = 'assets' | 'editor' | 'history' | 'sound';
 
 @Component({
   selector: 'app-root',
@@ -12,15 +27,22 @@ import { GamePlatform, StorageFormat } from './models';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit, OnDestroy {
+  private static readonly ACCORDION_KEY = 'randomizer:accordion';
+
   private readonly api = inject(GameApiService);
   private readonly randomizer = inject(RandomizerService);
-  private spinInterval: ReturnType<typeof setInterval> | null = null;
+  readonly audio = inject(AudioService);
+  private spinTimeout: ReturnType<typeof setTimeout> | null = null;
   private loadSeq = 0;
 
   // backend state
   readonly platforms = signal<GamePlatform[]>([]);
   readonly selectedPlatform = signal<string | null>(null);
   readonly storageFormat = signal<StorageFormat>('json');
+
+  // roulette assets
+  readonly assets = signal<AssetsManifest | null>(null);
+  readonly bgFile = signal<string | null>(null);
 
   // ui state
   readonly newItem = signal('');
@@ -33,15 +55,51 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly savedAt = signal<string | null>(null);
   readonly error = signal<string | null>(null);
 
+  // spin settings: 1 s … 2 min
+  readonly spinMinMs = 1000;
+  readonly spinMaxMs = 120000;
+  readonly spinDurationMs = signal(5000);
+
+  // accordions (persisted)
+  readonly expanded = signal<Record<SectionId, boolean>>(AppComponent.readAccordionState());
+
   readonly items = this.randomizer.items;
   readonly history = this.randomizer.history;
+  readonly volume = this.audio.volume;
+
+  readonly isDesktop = typeof window !== 'undefined' && !!window.randomizer?.isDesktop;
 
   readonly currentPlatform = computed(
     () => this.platforms().find(p => p.id === this.selectedPlatform()) ?? null
   );
+  readonly selectedPlatformIndex = computed(() =>
+    this.platforms().findIndex(p => p.id === this.selectedPlatform())
+  );
+  readonly selectedIcon = computed(() => this.iconFor(this.selectedPlatformIndex()));
   readonly canPick = computed(
     () => this.items().length > 0 && !this.isSpinning() && !this.loading()
   );
+  readonly assetsSummary = computed(() => {
+    const a = this.assets();
+    if (!a) return 'not scanned';
+    return `${a.music.length} music · ${a.stopSound ? 'stop ✓' : 'no stop'} · ${a.icons.length} icons · ${a.backgrounds.length} bg`;
+  });
+
+  readonly musicCount = computed(() => this.assets()?.music.length ?? 0);
+  readonly iconCount = computed(() => this.assets()?.icons.length ?? 0);
+  readonly bgCount = computed(() => this.assets()?.backgrounds.length ?? 0);
+  readonly hasStopSound = computed(() => this.assets()?.stopSound != null);
+  readonly musicMeta = computed(() => {
+  const n = this.assets()?.music.length ?? 0;
+  return n ? ` · ${n} tracks` : '';
+});
+
+  readonly resultBackground = computed(() => {
+    const file = this.bgFile();
+    return file
+      ? `linear-gradient(rgba(15, 23, 42, 0.78), rgba(15, 23, 42, 0.78)), url('/roulette/${encodeURIComponent(file)}')`
+      : null;
+  });
 
   ngOnInit(): void {
     this.api.getPlatforms().subscribe({
@@ -51,12 +109,71 @@ export class AppComponent implements OnInit, OnDestroy {
       },
       error: () => this.error.set('Backend is not reachable. Run "npm run server" first.')
     });
+    this.loadAssets();
   }
 
+  // ---------- window controls (Electron title bar) ----------
+  minimizeWindow(): void { window.randomizer?.minimize(); }
+  toggleMaximizeWindow(): void { window.randomizer?.toggleMaximize(); }
+  closeWindow(): void { window.randomizer?.close(); }
+
+  // ---------- accordions ----------
+  private static readAccordionState(): Record<SectionId, boolean> {
+    const defaults: Record<SectionId, boolean> = {
+      assets: false, editor: true, history: false, sound: false
+    };
+    try {
+      const raw = localStorage.getItem(AppComponent.ACCORDION_KEY);
+      return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
+    } catch { return defaults; }
+  }
+
+  isExpanded(section: SectionId): boolean {
+    return !!this.expanded()[section];
+  }
+
+  toggleSection(section: SectionId): void {
+    this.expanded.update(map => {
+      const next = { ...map, [section]: !map[section] };
+      try { localStorage.setItem(AppComponent.ACCORDION_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+  }
+
+  // ---------- roulette assets ----------
+  loadAssets(): void {
+    this.api.getAssets().subscribe({
+      next: manifest => {
+        this.assets.set(manifest);
+        this.rotateBackground();
+      },
+      error: () => { /* error banner already shown by the platforms call */ }
+    });
+  }
+
+  /** RuletIco1 → first platform, RuletIco2 → second, … */
+  iconFor(index: number): string | null {
+    const icons = this.assets()?.icons ?? [];
+    return icons[index] ? `/roulette/${encodeURIComponent(icons[index])}` : null;
+  }
+
+  private rotateBackground(): void {
+    const backgrounds = this.assets()?.backgrounds ?? [];
+    this.bgFile.set(backgrounds.length
+      ? backgrounds[Math.floor(Math.random() * backgrounds.length)]
+      : null);
+  }
+
+  openRouletteFolder(): void {
+    void window.randomizer?.openRouletteFolder();
+  }
+
+  // ---------- platform / list ----------
   selectPlatform(id: string): void {
     if (this.selectedPlatform() === id) return;
     this.selectedPlatform.set(id);
     this.result.set(null);
+    this.rotateBackground();
     this.loadList();
   }
 
@@ -112,6 +229,27 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ---------- spin settings ----------
+  onDurationInput(event: Event): void {
+    this.spinDurationMs.set(Number((event.target as HTMLInputElement).value));
+  }
+
+  onVolumeInput(event: Event): void {
+    this.audio.setVolume(Number((event.target as HTMLInputElement).value));
+  }
+
+  testStopSound(): void {
+    this.audio.playEndSound(this.assets()?.stopSound ?? null);
+  }
+
+  formatDuration(ms: number): string {
+    const totalSec = Math.round(ms / 1000);
+    if (totalSec >= 60) {
+      return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')} min`;
+    }
+    return `${(ms / 1000).toFixed(1)} s`;
+  }
+
   // ---------- editor ----------
   onNewItemInput(event: Event): void {
     this.newItem.set((event.target as HTMLInputElement).value);
@@ -135,7 +273,6 @@ export class AppComponent implements OnInit, OnDestroy {
     this.dirty.set(true);
   }
 
-  // import .txt into the current platform (not persisted until "Save")
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -158,22 +295,41 @@ export class AppComponent implements OnInit, OnDestroy {
   pick(): void {
     if (!this.canPick()) return;
 
+    const items = this.items();
+    const winner = this.randomizer.chooseWinner(this.excludeLast());
+    if (!winner) return;
+
     this.isSpinning.set(true);
     this.result.set(null);
+    this.audio.playSpinMusic(this.assets()?.music ?? []);
 
-    let ticks = 0;
-    const maxTicks = 15;
+    const duration = this.spinDurationMs();
+    const steps = Math.min(Math.max(Math.round(duration / 80), 12), 400);
+    const base = 40;
+    const growth = duration > steps * base
+      ? (2 * (duration - steps * base)) / (steps * (steps - 1))
+      : 0;
 
-    this.spinInterval = setInterval(() => {
-      const items = this.items();
-      ticks++;
-      if (ticks >= maxTicks) {
-        this.stopSpin();
-        this.result.set(this.randomizer.pickRandom(this.excludeLast()));
-      } else {
-        this.result.set(items[Math.floor(Math.random() * items.length)]);
+    let step = 0;
+    const tick = () => {
+      step++;
+      if (step >= steps) {
+        this.finishSpin(winner);
+        return;
       }
-    }, 80);
+      this.result.set(items[Math.floor(Math.random() * items.length)]);
+      this.spinTimeout = setTimeout(tick, base + growth * step);
+    };
+    this.spinTimeout = setTimeout(tick, base);
+  }
+
+  private finishSpin(winner: string): void {
+    this.spinTimeout = null;
+    this.result.set(winner);
+    this.randomizer.commit(winner);
+    this.isSpinning.set(false);
+    this.audio.stopSpinMusic();
+    this.audio.playEndSound(this.assets()?.stopSound ?? null);
   }
 
   toggleExclude(event: Event): void {
@@ -186,10 +342,11 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private stopSpin(): void {
-    if (this.spinInterval !== null) {
-      clearInterval(this.spinInterval);
-      this.spinInterval = null;
+    if (this.spinTimeout !== null) {
+      clearTimeout(this.spinTimeout);
+      this.spinTimeout = null;
     }
+    this.audio.stopSpinMusic();
     this.isSpinning.set(false);
   }
 
