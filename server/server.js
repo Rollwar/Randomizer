@@ -1,167 +1,77 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { XMLParser, XMLBuilder } = require('fast-xml-parser');
+const { PlatformRegistry } = require('./platforms');
+const { ensureDir, writeList, readList } = require('./storage');
 
-const PLATFORMS = [
-  { id: 'nes',           name: 'NES' },
-  { id: 'sega-genesis',  name: 'SEGA GENESIS' },
-  { id: 'ps1',           name: 'PS1' },
-  { id: 'super-famicom', name: 'SUPER FAMICOM' }
-];
+function startServer({ port = 3000, staticDir = null, dataDir, platformsDir, rouletteDir } = {}) {
+  const root = path.join(__dirname, '..');
+  dataDir = dataDir || path.join(root, 'data');
+  platformsDir = platformsDir || path.join(root, 'platforms');
+  rouletteDir = rouletteDir || path.join(root, 'roulette');
 
-const DEFAULT_SEED = {
-  'nes':           ['Super Mario Bros.', 'Contra', 'Mega Man 2', 'Castlevania', 'DuckTales'],
-  'sega-genesis':  ['Sonic the Hedgehog', 'Streets of Rage 2', 'Gunstar Heroes', 'Comix Zone'],
-  'ps1':           ['Final Fantasy VII', 'Metal Gear Solid', 'Crash Bandicoot', 'Spyro the Dragon'],
-  'super-famicom': ['Super Mario World', 'Chrono Trigger', 'Donkey Kong Country', 'Star Fox']
-};
-
-const XML_OPTS = { ignoreAttributes: false, attributeNamePrefix: '@_' };
-
-// roulette media: what we recognize when scanning the folder
-const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac', '.wma', '.opus']);
-const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']);
-
-// ---------------- storage helpers ----------------
-
-const jsonFile = (dir, id) => path.join(dir, `${id}.json`);
-const xmlFile  = (dir, id) => path.join(dir, `${id}.xml`);
-
-const cleanItems = items => (items ?? []).map(i => String(i).trim()).filter(Boolean);
-
-function writeList(dir, id, items, format) {
-  const clean = cleanItems(items);
-  const updatedAt = new Date().toISOString();
-
-  if (format === 'xml') {
-    const builder = new XMLBuilder({ ...XML_OPTS, format: true, indentBy: '  ', suppressEmptyNode: true });
-    const xml =
-      '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      builder.build({
-        list: { '@_platform': id, '@_updatedAt': updatedAt, items: { item: clean } }
-      });
-    fs.writeFileSync(xmlFile(dir, id), xml, 'utf8');
-    try { fs.unlinkSync(jsonFile(dir, id)); } catch { /* not there */ }
-  } else {
-    fs.writeFileSync(
-      jsonFile(dir, id),
-      JSON.stringify({ platform: id, items: clean, updatedAt }, null, 2),
-      'utf8'
-    );
-    try { fs.unlinkSync(xmlFile(dir, id)); } catch { /* not there */ }
-  }
-
-  return { platform: id, format, items: clean, updatedAt };
-}
-
-function readList(dir, id, preferredFormat) {
-  const order = preferredFormat === 'xml' ? ['xml', 'json'] : ['json', 'xml'];
-
-  for (const format of order) {
-    try {
-      if (format === 'json') {
-        const parsed = JSON.parse(fs.readFileSync(jsonFile(dir, id), 'utf8'));
-        return { platform: id, format, items: cleanItems(parsed.items), updatedAt: parsed.updatedAt ?? null };
-      } else {
-        const raw = fs.readFileSync(xmlFile(dir, id), 'utf8');
-        const parsed = new XMLParser(XML_OPTS).parse(raw);
-        let items = parsed?.list?.items?.item ?? [];
-        if (!Array.isArray(items)) items = [items];
-        return { platform: id, format, items: cleanItems(items), updatedAt: parsed?.list?.['@_updatedAt'] ?? null };
-      }
-    } catch { /* file missing/broken — try the other format */ }
-  }
-  return { platform: id, format: preferredFormat, items: [], updatedAt: null };
-}
-
-function ensureDataDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  for (const p of PLATFORMS) {
-    if (!fs.existsSync(jsonFile(dir, p.id)) && !fs.existsSync(xmlFile(dir, p.id))) {
-      writeList(dir, p.id, DEFAULT_SEED[p.id] ?? [], 'json');
-    }
-  }
-}
-
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
-/**
- * Scans the roulette folder (case-insensitive names):
- *   Rulett01.mp3, Rulett02.ogg …  → spin music (loops during the spin)
- *   RulettEnd.wav                 → "wheel stopped" sound
- *   RuletIco1.png, RuletIco2.png… → platform icons, matched to /api/platforms order
- *   any other image               → roulette background
- */
-function scanRoulette(dir) {
-  const manifest = { dir, music: [], stopSound: null, icons: [], backgrounds: [] };
-  let entries = [];
-  try { entries = fs.readdirSync(dir); } catch { return manifest; }
-
-  const fileNumber = name => {
-    const m = name.match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER; // RuletIco10 after RuletIco9
-  };
-
-  for (const name of entries) {
-    const ext = path.extname(name).toLowerCase();
-    const base = path.basename(name, ext).toLowerCase();
-
-    if (AUDIO_EXTS.has(ext)) {
-      if (base === 'rulettend') { if (!manifest.stopSound) manifest.stopSound = name; }
-      else if (base.startsWith('rulett')) manifest.music.push(name);
-    } else if (IMAGE_EXTS.has(ext)) {
-      if (base.startsWith('ruletico')) manifest.icons.push(name);
-      else manifest.backgrounds.push(name);
-    }
-  }
-
-  manifest.music.sort((a, b) => fileNumber(a) - fileNumber(b) || a.localeCompare(b));
-  manifest.icons.sort((a, b) => fileNumber(a) - fileNumber(b) || a.localeCompare(b));
-  manifest.backgrounds.sort();
-  return manifest;
-}
-
-// ---------------- server ----------------
-
-function startServer({ port = 3000, staticDir = null, dataDir, rouletteDir } = {}) {
-  dataDir = dataDir || path.join(__dirname, '..', 'data');
-  rouletteDir = rouletteDir || path.join(__dirname, '..', 'roulette');
-  ensureDataDir(dataDir);
+  ensureDir(dataDir);
+  ensureDir(platformsDir);
   ensureDir(rouletteDir);
+
+  const registry = new PlatformRegistry({ platformsDir, dataDir });
+  registry.init();      // scan + import on startup
+  registry.watch();     // keep watching for txt changes
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
-  // roulette media — served straight from the folder, rescanned on every request
+  // roulette media + folder info
   app.use('/roulette', express.static(rouletteDir));
-  app.get('/api/assets', (_req, res) => res.json(scanRoulette(rouletteDir)));
+  app.get('/api/assets', (_req, res) =>
+    res.json({
+      ...require('./roulette-scan').scanRoulette(rouletteDir),
+      platformsDir,
+      platformCount: registry.list().length
+    })
+  );
+  // ---------- platforms (now dynamic) ----------
+  app.get('/api/platforms', (_req, res) => res.json(registry.list()));
 
-  app.get('/api/platforms', (_req, res) => res.json(PLATFORMS));
+  // force re-import of {platform}.games.txt (overwrites the stored list)
+  app.post('/api/platforms/:id/import', (req, res) => {
+    if (!registry.has(req.params.id)) return res.status(404).json({ error: 'Unknown platform' });
+    const result = registry.importGames(req.params.id, { force: true });
+    if (result.imported) registry.emit('list', req.params.id);
+    res.json(result);
+  });
 
+  // ---------- lists ----------
   app.get('/api/lists/:id', (req, res) => {
-    const platform = PLATFORMS.find(p => p.id === req.params.id);
-    if (!platform) return res.status(404).json({ error: 'Unknown platform' });
+    if (!registry.has(req.params.id)) return res.status(404).json({ error: 'Unknown platform' });
     const format = req.query.format === 'xml' ? 'xml' : 'json';
-    res.json(readList(dataDir, platform.id, format));
+    res.json(readList(dataDir, req.params.id, format));
   });
 
   app.put('/api/lists/:id', (req, res) => {
-    const platform = PLATFORMS.find(p => p.id === req.params.id);
-    if (!platform) return res.status(404).json({ error: 'Unknown platform' });
+    if (!registry.has(req.params.id)) return res.status(404).json({ error: 'Unknown platform' });
     if (!Array.isArray(req.body?.items)) {
       return res.status(400).json({ error: 'Body must be { "items": [...], "format": "json"|"xml" }' });
     }
     const format = req.body.format === 'xml' ? 'xml' : 'json';
-    res.json(writeList(dataDir, platform.id, req.body.items, format));
+    res.json(writeList(dataDir, req.params.id, req.body.items, format));
   });
 
   app.delete('/api/lists/:id', (req, res) => {
-    const platform = PLATFORMS.find(p => p.id === req.params.id);
-    if (!platform) return res.status(404).json({ error: 'Unknown platform' });
-    res.json(writeList(dataDir, platform.id, [], 'json'));
+    if (!registry.has(req.params.id)) return res.status(404).json({ error: 'Unknown platform' });
+    res.json(writeList(dataDir, req.params.id, [], 'json'));
+  });
+
+  // ---------- SSE: live updates for connected clients ----------
+  app.get('/api/events', (req, res) => {
+    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    res.flushHeaders();
+
+    const send = payload => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    const unsubscribe = registry.onChange(payload => send(payload));
+    const heartbeat = setInterval(() => res.write(': hb\n\n'), 25000);
+
+    req.on('close', () => { clearInterval(heartbeat); unsubscribe(); });
   });
 
   // serve the built Angular app (used by Electron)
@@ -173,19 +83,26 @@ function startServer({ port = 3000, staticDir = null, dataDir, rouletteDir } = {
     });
   }
 
-  return app.listen(port);
+  const server = app.listen(port);
+  server.on('close', () => registry.stopWatching());
+  server.registry = registry; // exposed for tests/tools
+  return server;
 }
 
-module.exports = { startServer, PLATFORMS };
+module.exports = { startServer };
 
 // standalone mode: node server/server.js
 if (require.main === module) {
   const root = path.join(__dirname, '..');
   const port = Number(process.env.PORT) || 3000;
-  const dataDir = process.env.DATA_DIR || path.join(root, 'data');
-  const rouletteDir = process.env.ROULETTE_DIR || path.join(root, 'roulette');
-  startServer({ port, dataDir, rouletteDir });
-  console.log(`Randomizer API  → http://localhost:${port}/api/platforms`);
-  console.log(`Data folder     → ${dataDir}`);
-  console.log(`Roulette folder → ${rouletteDir}`);
+  startServer({
+    port,
+    dataDir: process.env.DATA_DIR || path.join(root, 'data'),
+    platformsDir: process.env.PLATFORMS_DIR || path.join(root, 'platforms'),
+    rouletteDir: process.env.ROULETTE_DIR || path.join(root, 'roulette')
+  });
+  console.log(`Randomizer API   → http://localhost:${port}/api/platforms`);
+  console.log(`Data folder      → ${process.env.DATA_DIR || path.join(root, 'data')}`);
+  console.log(`Platforms folder → ${process.env.PLATFORMS_DIR || path.join(root, 'platforms')}`);
+  console.log(`Roulette folder  → ${process.env.ROULETTE_DIR || path.join(root, 'roulette')}`);
 }

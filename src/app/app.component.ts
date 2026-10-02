@@ -7,6 +7,7 @@ import { AssetsManifest, GamePlatform, StorageFormat } from './models';
 
 interface RandomizerBridge {
   isDesktop: boolean;
+  openPlatformsFolder(): Promise<string>;
   openRouletteFolder(): Promise<string>;
   minimize(): void;
   toggleMaximize(): void;
@@ -79,20 +80,21 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly canPick = computed(
     () => this.items().length > 0 && !this.isSpinning() && !this.loading()
   );
-  readonly assetsSummary = computed(() => {
-    const a = this.assets();
-    if (!a) return 'not scanned';
-    return `${a.music.length} music · ${a.stopSound ? 'stop ✓' : 'no stop'} · ${a.icons.length} icons · ${a.backgrounds.length} bg`;
-  });
+readonly assetsSummary = computed(() => {
+  const a = this.assets();
+  if (!a) return 'not scanned';
+  const plat = a.platformCount ?? this.platforms().length;
+  return `${a.music.length} music · ${a.stopSound ? 'stop ✓' : 'no stop'} · ${a.icons.length} icons · ${a.backgrounds.length} bg · ${plat} platforms`;
+});
 
   readonly musicCount = computed(() => this.assets()?.music.length ?? 0);
   readonly iconCount = computed(() => this.assets()?.icons.length ?? 0);
   readonly bgCount = computed(() => this.assets()?.backgrounds.length ?? 0);
   readonly hasStopSound = computed(() => this.assets()?.stopSound != null);
   readonly musicMeta = computed(() => {
-  const n = this.assets()?.music.length ?? 0;
-  return n ? ` · ${n} tracks` : '';
-});
+    const n = this.assets()?.music.length ?? 0;
+    return n ? ` · ${n} tracks` : '';
+  });
 
   readonly resultBackground = computed(() => {
     const file = this.bgFile();
@@ -166,6 +168,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   openRouletteFolder(): void {
     void window.randomizer?.openRouletteFolder();
+  }
+
+  openPlatformsFolder(): void {
+    void window.randomizer?.openPlatformsFolder();
   }
 
   // ---------- platform / list ----------
@@ -349,6 +355,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.audio.stopSpinMusic();
     this.isSpinning.set(false);
   }
+
 
   ngOnDestroy(): void {
     this.stopSpin();

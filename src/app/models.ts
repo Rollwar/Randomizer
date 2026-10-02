@@ -15,4 +15,6 @@ export interface AssetsManifest {
   stopSound: string | null;
   icons: string[];
   backgrounds: string[];
+  platformsDir?: string;
+  platformCount?: number;
 }
