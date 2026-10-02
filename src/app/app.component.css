@@ -147,7 +147,7 @@ input[type=radio], input[type=checkbox] { accent-color: #6366f1; }
 .slider { width: 100%; accent-color: #6366f1; cursor: pointer; }
 .slider-scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; }
 
-.volume-row { display: flex; align-items: center; gap: 0.5rem; color: #94a3b8; }
+.volume-row { display: flex; align-items: center; gap: 0.5rem; color: #94a3b8; padding-top: 20px; }
 .volume-row .slider { flex: 1; }
 .volume-value { min-width: 3rem; text-align: right; color: #e2e8f0; }
 
@@ -192,4 +192,41 @@ input[type=radio], input[type=checkbox] { accent-color: #6366f1; }
 .folder-actions button {
   background: #334155; color: #e2e8f0; border: none;
   border-radius: 8px; padding: 0.4rem 0.9rem;
+}
+
+/* ---------- carousel (last / next picks) ---------- */
+.carousel-row { display: flex; align-items: center; justify-content: center; gap: 0.6rem; }
+.slot.side {
+  flex: 0 1 150px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  text-align: center;
+}
+.slot-cap {
+  font-size: 0.65rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.slot-name {
+  font-size: 0.8rem;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.slot.prev .slot-name { color: #94a3b8; }
+.slot.next .slot-name { color: #7dd3fc; }
+.slot.flicker { animation: pulse 0.4s infinite alternate; }
+
+@media (max-width: 640px) {
+  .slot.side { display: none; }   /* narrow window: keep only the center */
 }

@@ -1,8 +1,8 @@
 {
-  "name": "randomizer-app",
-  "version": "2.0.0",
+  "name": "MadRandomizer-app",
+  "version": "1.0.0",
   "description": "Game randomizer with backend storage",
-  "author": "you",
+  "author": "NightmareFr90 & 2DDarkKnight",
   "private": true,
   "main": "electron/main.js",
   "scripts": {

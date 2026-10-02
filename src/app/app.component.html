@@ -1,10 +1,10 @@
-<!-- Custom title bar (Electron only) -->
+<!-- Пользовательская строка заголовка (только для Electron) -->
 <header class="titlebar" *ngIf="isDesktop">
   <div class="titlebar-title">🎲 Поехавший рандомайзер</div>
     <div class="titlebar-controls">
-    <button type="button" class="tb-btn" (click)="minimizeWindow()" title="Minimize">&#x2500;</button>
-    <button type="button" class="tb-btn" (click)="toggleMaximizeWindow()" title="Maximize / restore">&#x25A1;</button>
-    <button type="button" class="tb-btn close" (click)="closeWindow()" title="Close">&#x2715;</button>
+    <button type="button" class="tb-btn" (click)="minimizeWindow()" title="Свернуть">&#x2500;</button>
+    <button type="button" class="tb-btn" (click)="toggleMaximizeWindow()" title="Развернуть / восстановить">&#x25A1;</button>
+    <button type="button" class="tb-btn close" (click)="closeWindow()" title="Закрыть">&#x2715;</button>
   </div>
 </header>
 
@@ -14,7 +14,7 @@
 
     <p class="error" *ngIf="error()">{{ error() }}</p>
 
-    <!-- Platform menu (icons: RuletIco1 = first platform, …) -->
+    <!-- Меню платформ (иконки: RuletIco1 = первая платформа, …) -->
     <nav class="card platform-menu" *ngIf="platforms().length">
       <button *ngFor="let p of platforms(); let i = index" type="button" [disabled]="isSpinning()"
         [class.active]="p.id === selectedPlatform()" (click)="selectPlatform(p.id)">
@@ -25,40 +25,60 @@
 
     <ng-container *ngIf="currentPlatform() as platform">
 
-      <!-- Roulette / result (not collapsible) -->
-      <section class="card result-card">
-        <div class="platform-title">
-          <img *ngIf="selectedIcon() as icon" [src]="icon" class="platform-icon small" alt="" />
-          {{ platform.name }}
+    <!-- Рулетка / результат (без сворачивания) -->
+    <section class="card result-card" [style.background-image]="resultBackground()">
+      <div class="platform-title">
+        <img *ngIf="selectedIcon() as icon" [src]="icon" class="platform-icon small" alt="" />
+        {{ platform.name }}
+      </div>
+
+      <div class="carousel-row">
+        <div class="slot side prev" *ngFor="let g of prevSlots()" [title]="g">
+          <span class="slot-cap">прошлый</span>
+          <span class="slot-name">{{ g }}</span>
         </div>
 
         <div class="result" [class.spinning]="isSpinning()">
-          {{ loading() ? 'Loading…' : (result() ?? '—') }}
+          {{ loading() ? 'Загрузка…' : (result() ?? '—') }}
         </div>
 
-        <button class="pick-btn" type="button" (click)="pick()" [disabled]="!canPick()">
-          {{ isSpinning() ? 'Spinning…' : 'Randomize' }}
-        </button>
+        <div class="slot side next" *ngFor="let g of nextSlots()"
+             [class.flicker]="isSpinning()" [title]="g">
+          <span class="slot-cap">далее</span>
+          <span class="slot-name">{{ g }}</span>
+        </div>
+      </div>
 
-        <label class="option">
-          <input type="checkbox" [checked]="excludeLast()" (change)="toggleExclude($event)" />
-          Don't repeat the last result
+      <button class="pick-btn" type="button" (click)="pick()" [disabled]="!canPick()">
+        {{ isSpinning() ? 'Крутим…' : 'Крутить' }}
+      </button>
+
+      <label class="option">
+        <input type="checkbox" [checked]="excludeLast()" (change)="toggleExclude($event)" />
+        Не повторять последний результат
+      </label>
+
+      <label class="option">
+        <input type="checkbox" [checked]="carouselEnabled()" (change)="toggleCarousel($event)" />
+        Показывать очередь — 2 прошлых / 2 следующих
+      </label>
+
+      <div class="spin-settings">
+        <label>
+          Длительность прокрутки: <strong>{{ formatDuration(spinDurationMs()) }}</strong>
         </label>
+        <input class="slider" type="range"
+               [disabled] = "isSpinning()"
+               [min]="spinMinMs" [max]="spinMaxMs" step="500"
+               [value]="spinDurationMs()" (input)="onDurationInput($event)" />
+        <div class="slider-scale"><span>1 с</span><span>2 мин</span></div>
+      </div>
+    </section>
 
-        <div class="spin-settings">
-          <label>
-            Spin duration: <strong>{{ formatDuration(spinDurationMs()) }}</strong>
-          </label>
-          <input class="slider" type="range" [disabled]="isSpinning()" [min]="spinMinMs" [max]="spinMaxMs" step="500"
-            [value]="spinDurationMs()" (input)="onDurationInput($event)" />
-          <div class="slider-scale"><span>1 s</span><span>2 min</span></div>
-        </div>
-      </section>
-
-      <!-- ⚙ Accordion: assets folder status -->
+      <!-- ⚙ Аккордеон: статус папки с ресурсами -->
       <section class="card accordion" [class.open]="isExpanded('assets')">
         <button type="button" class="acc-header" (click)="toggleSection('assets')">
-          <span class="acc-title">📁 Roulette folder</span>
+          <span class="acc-title">📁 Папка рулетки</span>
           <span class="acc-meta">{{ assetsSummary() }}</span>
           <span class="chevron">▾</span>
         </button>
@@ -66,69 +86,69 @@
           <div class="acc-content">
             <div class="folder-row">
               <span class="hint" [title]="assets()?.platformsDir">
-                🗂 Platforms: {{ assets()?.platformsDir ?? 'unknown' }} — {{ platforms().length }} loaded
+                🗂 Платформы: {{ assets()?.platformsDir ?? 'неизвестно' }} — загружено: {{ platforms().length }}
               </span>
               <span class="folder-actions">
-                <button *ngIf="isDesktop" type="button" (click)="openPlatformsFolder()">Open folder</button>
+                <button *ngIf="isDesktop" type="button" (click)="openPlatformsFolder()">Открыть папку</button>
               </span>
             </div>
             <p class="hint">
-              Add platforms: a line in <code>platforms.txt</code> (<code>id | Name</code>), games:
-              <code>id.games.txt</code> (one per line) — picked up automatically.
+              Добавление платформ: строка в <code>platforms.txt</code> (<code>id | Название</code>), игры:
+              <code>id.games.txt</code> (по одной в строке) — подхватываются автоматически.
             </p>
             <div class="folder-row">
               <span class="hint" [title]="assets()?.dir">{{ assets()?.dir }}</span>
               <span class="folder-actions">
-                <button *ngIf="isDesktop" type="button" (click)="openRouletteFolder()">Open folder</button>
-                <button type="button" (click)="loadAssets()">↻ Refresh</button>
+                <button *ngIf="isDesktop" type="button" (click)="openRouletteFolder()">Открыть папку</button>
+                <button type="button" (click)="loadAssets()">↻ Обновить</button>
               </span>
             </div>
-            <!-- assets accordion -->
+            <!-- аккордеон ресурсов -->
             <p class="hint">
-              Found: {{ musicCount() }} music ·
-              {{ hasStopSound() ? 'stop sound ✓' : 'no stop sound' }} ·
-              {{ iconCount() }} icons ·
-              {{ bgCount() }} backgrounds.
-              Drop in: <code>Rulett01.mp3</code> (music), <code>RulettEnd.wav</code> (stop),
-              <code>RuletIco1.png</code> 72×72 (icons, platform order), any <code>.jpg</code> (background).
+              Найдено: {{ musicCount() }} саундтрек(и) прокрутки рулетки ·
+              {{ hasStopSound() ? 'саундтрек остановки ✓' : 'нет саундтрека остановки' }} ·
+              {{ iconCount() }} иконок ·
+              {{ bgCount() }} фонов.
+              Положите в папку: <code>Rulett01.mp3</code> (музыка), <code>RulettEnd.wav</code> (стоп),
+              <code>RuletIco1.png</code> 72×72 (иконки, по порядку платформ), любой <code>.jpg</code> (фон).
             </p>
           </div>
         </div>
       </section>
 
-      <!-- ⚙ Accordion: game editor -->
+      <!-- ⚙ Аккордеон: редактор списка игр -->
       <section class="card accordion" [class.open]="isExpanded('editor')">
         <button type="button" class="acc-header" (click)="toggleSection('editor')">
-          <span class="acc-title">🎮 Game list</span>
-          <!-- sound accordion header -->
-          <span class="acc-meta">{{ volume() }}%{{ musicCount() ? ' · ' + musicCount() + ' tracks' : '' }}</span>
+          <span class="acc-title">🎮 Список игр</span>
+          <!-- заголовок аккордеона звука -->
+          <span class="acc-meta"></span>
           <span class="chevron">▾</span>
         </button>
         <div class="acc-body">
           <div class="acc-content">
             <div class="editor-row">
-              <input type="text" placeholder="Add a game…" [value]="newItem()" (input)="onNewItemInput($event)"
+              <input type="text" placeholder="Добавить игру…" [value]="newItem()" (input)="onNewItemInput($event)"
                 (keydown.enter)="addItem()" />
-              <button type="button" (click)="addItem()">Add</button>
+              <button type="button" (click)="addItem()">Добавить</button>
             </div>
 
             <ul class="list editable">
               <li *ngFor="let item of items(); let i = index">
                 <span>{{ item }}</span>
-                <button class="remove" type="button" (click)="removeItem(i)" title="Remove">✕</button>
+                <button class="remove" type="button" (click)="removeItem(i)" title="Удалить">✕</button>
               </li>
             </ul>
             <p class="hint" *ngIf="!items().length && !loading()">
-              Empty list — add games above or import a .txt file.
+              Список пуст — добавьте игры выше или импортируйте .txt-файл.
             </p>
 
             <div class="import-row">
               <input type="file" accept=".txt,text/plain" (change)="onFileSelected($event)" />
-              <span class="hint">import .txt (one title per line), then press Save</span>
+              <span class="hint">Импорт .txt (одно название в строке), затем нажмите «Сохранить»</span>
             </div>
 
             <div class="save-row">
-              <span class="hint">File format:</span>
+              <span class="hint">Формат файла:</span>
               <label>
                 <input type="radio" name="fmt" value="json" [checked]="storageFormat() === 'json'"
                   (change)="setFormat('json')" /> JSON
@@ -138,21 +158,21 @@
                   (change)="setFormat('xml')" /> XML
               </label>
               <span class="spacer"></span>
-              <button type="button" (click)="reload()">Reload</button>
-              <button type="button" (click)="clearList()">Clear list</button>
+              <button type="button" (click)="reload()">Перезагрузить</button>
+              <button type="button" (click)="clearList()">Очистить список</button>
               <button type="button" class="primary" (click)="save()" [disabled]="saving() || !selectedPlatform()">
-                {{ saving() ? 'Saving…' : 'Save as ' + storageFormat().toUpperCase() }}
+                {{ saving() ? 'Сохранение…' : 'Сохранить как ' + storageFormat().toUpperCase() }}
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ⚙ Accordion: history -->
+      <!-- ⚙ Аккордеон: история -->
       <section class="card accordion" [class.open]="isExpanded('history')">
         <button type="button" class="acc-header" (click)="toggleSection('history')">
-          <span class="acc-title">🕘 History</span>
-          <span class="acc-meta">{{ history().length ? history().length + ' picks' : 'empty' }}</span>
+          <span class="acc-title">🕘 История</span>
+          <span class="acc-meta">{{ history().length ? history().length + ' выпадений' : 'пусто' }}</span>
           <span class="chevron">▾</span>
         </button>
         <div class="acc-body">
@@ -160,18 +180,18 @@
             <ul class="list" *ngIf="history().length">
               <li *ngFor="let h of history(); let first = first" [class.latest]="first">{{ h }}</li>
             </ul>
-            <p class="hint" *ngIf="!history().length">Nothing picked yet this session.</p>
+            <p class="hint" *ngIf="!history().length">За текущую сессию ещё ничего не выпадало.</p>
             <div class="acc-actions" *ngIf="history().length">
-              <button type="button" (click)="resetHistory()">Clear history</button>
+              <button type="button" (click)="resetHistory()">Очистить историю</button>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ⚙ Accordion: sound control -->
+      <!-- ⚙ Аккордеон: управление звуком -->
       <section class="card accordion" [class.open]="isExpanded('sound')">
         <button type="button" class="acc-header" (click)="toggleSection('sound')">
-          <span class="acc-title">🔊 Sound</span>
+          <span class="acc-title">🔊 Звук</span>
           <span class="acc-meta">{{ volume() }}%{{ musicMeta() }}</span>
           <span class="chevron">▾</span>
         </button>
@@ -183,8 +203,7 @@
               <span class="volume-value">{{ volume() }}%</span>
             </label>
             <p class="hint">
-              Music loops while the wheel spins and stops with the <code>RulettEnd</code> sound.
-              Volume is remembered between sessions.
+              Громкость сохраняется между сессиями.
             </p>
           </div>
         </div>

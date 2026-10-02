@@ -27,4 +27,17 @@ export class GameApiService {
   clearList(platformId: string): Observable<ListPayload> {
     return this.http.delete<ListPayload>(`${this.base}/lists/${platformId}`);
   }
+
+  /** Subscribes to server push events (SSE). Returns an unsubscribe function. */
+  onServerEvents(handlers: { platforms: () => void; list: (platformId: string) => void }): () => void {
+    const es = new EventSource('/api/events');
+    es.onmessage = ev => {
+      try {
+        const msg = JSON.parse(ev.data) as { type: 'platforms' | 'list'; platform?: string };
+        if (msg.type === 'platforms') handlers.platforms();
+        else if (msg.type === 'list' && msg.platform) handlers.list(msg.platform);
+      } catch { /* ignore malformed frames */ }
+    };
+    return () => es.close();
+  }
 }
