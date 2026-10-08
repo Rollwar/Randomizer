@@ -1,0 +1,97 @@
+* { box-sizing: border-box; }
+
+/* ---------- palettes ---------- */
+:root, :root[data-theme='default'] {
+  --bg-a: #0f172a;  --bg-b: #1e293b;
+  --panel: rgba(15, 23, 42, 0.95);
+  --card: rgba(30, 41, 59, 0.85);
+  --border: #334155;
+  --surface: #334155;
+  --field: #0f172a;
+  --slot: rgba(15, 23, 42, 0.55);
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --faint: #64748b;
+  --accent: #6366f1;
+  --accent-a: #6366f1;
+  --accent-b: #8b5cf6;
+  --result: #fbbf24;
+  --heading: #e2e8f0;
+  --code: #7dd3fc;
+  --latest-bg: #4c1d95;
+  --latest-text: #fbbf24;
+  --overlay: rgba(15, 23, 42, 0.78);
+  --track: rgba(15, 23, 42, 0.6);
+  --thumb: #475569;
+}
+:root[data-theme='green'] {
+  --bg-a: #0b1a12;  --bg-b: #14251b;
+  --panel: rgba(11, 26, 18, 0.95);
+  --card: rgba(16, 33, 24, 0.85);
+  --border: #2e4a3b;
+  --surface: #2e4a3b;
+  --field: #0c1a13;
+  --slot: rgba(11, 26, 18, 0.55);
+  --text: #e3f0e8;
+  --muted: #8fb3a0;
+  --faint: #6b8f7c;
+  --accent: #10b981;
+  --accent-a: #10b981;
+  --accent-b: #0d9488;
+  --result: #4ade80;
+  --heading: #4ade80;
+  --code: #6ee7b7;
+  --latest-bg: #1a4d33;
+  --latest-text: #4ade80;
+  --overlay: rgba(11, 26, 18, 0.78);
+  --track: rgba(11, 26, 18, 0.6);
+  --thumb: #3f5c4b;
+}
+:root[data-theme='purple'] {
+  --bg-a: #141024;  --bg-b: #1f1836;
+  --panel: rgba(20, 16, 36, 0.95);
+  --card: rgba(28, 22, 48, 0.85);
+  --border: #3e3566;
+  --surface: #33295a;
+  --field: #0f0b1e;
+  --slot: rgba(20, 16, 36, 0.55);
+  --text: #ece8f8;
+  --muted: #a89fce;
+  --faint: #7d6fa8;
+  --accent: #8b5cf6;
+  --accent-a: #8b5cf6;
+  --accent-b: #d946ef;
+  --result: #e9d5ff;
+  --heading: #d8b4fe;
+  --code: #c4b5fd;
+  --latest-bg: #3b1d6e;
+  --latest-text: #e9d5ff;
+  --overlay: rgba(20, 16, 36, 0.78);
+  --track: rgba(20, 16, 36, 0.6);
+  --thumb: #4a3f7a;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, var(--bg-a), var(--bg-b));
+  color: var(--text);
+}
+
+button { font: inherit; cursor: pointer; }
+
+/* ---------- custom scrollbar ---------- */
+* {
+  scrollbar-width: thin;                       /* Firefox */
+  scrollbar-color: var(--thumb) var(--track);
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--track); }
+::-webkit-scrollbar-thumb {
+  background: var(--thumb);
+  border-radius: 8px;
+  border: 2px solid var(--track);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+::-webkit-scrollbar-corner { background: transparent; }
